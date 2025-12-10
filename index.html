@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2026 靈神招生 | 回應呼召 承接使命</title>
+  
+  <!-- Error Handling: Displays errors on screen to prevent "Blank Page" mystery -->
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      const errorDiv = document.getElementById('error-display') || document.createElement('div');
+      errorDiv.id = 'error-display';
+      errorDiv.style.position = 'fixed';
+      errorDiv.style.top = '0';
+      errorDiv.style.left = '0';
+      errorDiv.style.width = '100%';
+      errorDiv.style.backgroundColor = '#fee2e2';
+      errorDiv.style.color = '#991b1b';
+      errorDiv.style.padding = '1rem';
+      errorDiv.style.zIndex = '9999';
+      errorDiv.style.borderBottom = '1px solid #b91c1c';
+      errorDiv.style.fontFamily = 'monospace';
+      errorDiv.innerHTML = '<strong>⚠️ 發生錯誤 (System Error):</strong><br/>' + message;
+      document.body.appendChild(errorDiv);
+      console.error(error);
+    };
+  </script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans TC"', 'sans-serif'],
+            serif: ['"Noto Serif TC"', 'serif'],
+          },
+          colors: {
+            'brand-navy': '#0f172a',
+            'brand-gold': '#d4af37',
+            'brand-cream': '#f8f5f2',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React & ReactDOM & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { background-color: #f8f5f2; color: #1e293b; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Simple fade in animation */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Main Application Script -->
+  <!-- NOTE: Removed data-type="module" to prevent Google Sites sandbox issues -->
+  <script type="text/babel" data-presets="typescript,react">
+    
+    // ==========================================
+    // 設定區：請在此填入您的 API KEY
+    // ==========================================
+    const API_KEY = "AIzaSyDAaBMDJD-vEwdQICZDIa15KEWl5TwYFjA"; 
+
+    // ==========================================
+    // Services
+    // ==========================================
+    
+    // We use a singleton to hold the chat session
+    let chatSession = null;
+    let GoogleGenAIClass = null; // Will be loaded dynamically
+
+    const SYSTEM_INSTRUCTION = `
+    你現在是「靈糧神學院」（LLPMTS）的 2026 招生智能顧問。你的名字叫「靈神小牧」。
+    你的任務是熱情、有智慧且充滿鼓勵地回答潛在神學生的問題。
+
+    請遵循以下準則：
+    1. **語氣**：溫暖、莊重、充滿信心，並帶有屬靈的洞察力。
+    2. **內容**：
+       - 鼓勵學生回應上帝的呼召。
+       - 解釋靈神的異象是「建造榮耀的教會」與「培訓國度領袖」。
+       - 介紹三個主要類別：神學本科、牧靈諮商科、雲端學院。
+       - 提醒 2026 招生的重要日期。
+    3. **限制**：如果你不知道具體的行政細節，請誠實告知，並建議他們查看官網。
+    4. **格式**：回覆請簡潔有力，重點清晰。
+
+    請以繁體中文回答。
+    `;
+
+    // Dynamic Import Helper
+    const loadGeminiSDK = async () => {
+      if (GoogleGenAIClass) return GoogleGenAIClass;
+      try {
+        // Dynamic import to avoid top-level module blocking in iframes
+        const module = await import("https://esm.run/@google/genai");
+        GoogleGenAIClass = module.GoogleGenAI;
+        return GoogleGenAIClass;
+      } catch (e) {
+        console.error("Failed to load Gemini SDK", e);
+        throw new Error("無法載入 AI 模組，可能是瀏覽器安全性設定阻擋。");
+      }
+    };
+
+    const getGeminiChatResponse = async (message, history) => {
+      try {
+        if (!API_KEY || API_KEY.includes("請在此填入")) {
+          return "請先在程式碼中設定您的 Gemini API Key。";
+        }
+
+        // Ensure SDK is loaded
+        const GoogleGenAI = await loadGeminiSDK();
+        
+        if (!chatSession) {
+          const ai = new GoogleGenAI({ apiKey: API_KEY });
+          chatSession = ai.chats.create({
+            model: 'gemini-2.5-flash',
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              temperature: 0.7,
+            },
+            history: history.map(h => ({
+              role: h.role,
+              parts: [{ text: h.text }],
+            })),
+          });
+        }
+
+        const result = await chatSession.sendMessage({ message });
+        return result.text || "抱歉，我現在無法回答您的問題，請稍後再試。";
+      } catch (error) {
+        console.error("Gemini API Error:", error);
+        return "連線發生錯誤，請檢查 API Key 或網路狀態。(" + error.message + ")";
+      }
+    };
+
+    // ==========================================
+    // Types (Simulated)
+    // ==========================================
+    const MessageRole = {
+      User: 'user',
+      Model: 'model',
+    };
+
+    // ==========================================
+    // Components: Icons
+    // ==========================================
+    const CrossIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+      </svg>
+    );
+
+    const BookIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    );
+
+    const GlobeIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+
+    const HeartIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    );
+
+    const ChatIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      </svg>
+    );
+
+    const MenuIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    );
+
+    const CloudIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+      </svg>
+    );
+
+    const UserGroupIcon = () => (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    );
+
+    // ==========================================
+    // Component: AdmissionsAdvisor
+    // ==========================================
+    const AdmissionsAdvisor = () => {
+      const [isOpen, setIsOpen] = React.useState(false);
+      const [input, setInput] = React.useState('');
+      const [messages, setMessages] = React.useState([
+        { role: MessageRole.Model, text: '平安！我是靈神招生顧問「靈神小牧」。您正在尋求 2026 年的呼召嗎？歡迎詢問任何關於學制、報名或屬靈裝備的問題！' }
+      ]);
+      const [isLoading, setIsLoading] = React.useState(false);
+      const messagesEndRef = React.useRef(null);
+
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      };
+
+      React.useEffect(() => {
+        scrollToBottom();
+      }, [messages, isOpen]);
+
+      const handleSend = async () => {
+        if (!input.trim() || isLoading) return;
+
+        const userMsg = input.trim();
+        setInput('');
+        setIsLoading(true);
+
+        const newMessages = [...messages, { role: MessageRole.User, text: userMsg }];
+        setMessages(newMessages);
+
+        try {
+          const history = newMessages.map(m => ({ role: m.role, text: m.text }));
+          const response = await getGeminiChatResponse(userMsg, history);
+          setMessages(prev => [...prev, { role: MessageRole.Model, text: response }]);
+        } catch (error) {
+          setMessages(prev => [...prev, { role: MessageRole.Model, text: "系統忙碌中，請稍後再試。" }]);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleSend();
+        }
+      };
+
+      return (
+        <React.Fragment>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className={`fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-2xl transition-all duration-300 ${
+              isOpen ? 'bg-red-500 rotate-90' : 'bg-brand-gold hover:bg-yellow-600'
+            } text-white`}
+            aria-label="Open Admissions Advisor"
+          >
+            {isOpen ? <CrossIcon /> : <ChatIcon />}
+          </button>
+
+          <div
+            className={`fixed bottom-24 right-6 w-full max-w-sm bg-white rounded-2xl shadow-2xl z-40 overflow-hidden border border-gray-200 transition-all duration-300 origin-bottom-right transform ${
+              isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'
+            }`}
+          >
+            <div className="bg-brand-navy p-4 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-serif font-bold text-lg">靈神招生智能顧問</h3>
+                <p className="text-xs text-gray-300">Powered by Gemini AI</p>
+              </div>
+            </div>
+
+            <div className="h-96 overflow-y-auto p-4 bg-gray-50 space-y-4">
+              {messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === MessageRole.User ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                      msg.role === MessageRole.User
+                        ? 'bg-brand-navy text-white rounded-tr-none'
+                        : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm flex space-x-2">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="p-4 bg-white border-t border-gray-100">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  placeholder="我想詢問關於 M.Div 的資格..."
+                  className="flex-1 bg-gray-100 text-gray-800 text-sm rounded-full px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={isLoading || !input.trim()}
+                  className="p-3 bg-brand-navy text-white rounded-full hover:bg-blue-900 disabled:opacity-50 transition-colors"
+                >
+                  <svg className="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </React.Fragment>
+      );
+    };
+
+    // ==========================================
+    // Component: NavBar
+    // ==========================================
+    const NavBar = () => {
+      const [isScrolled, setIsScrolled] = React.useState(false);
+      const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+      React.useEffect(() => {
+        const handleScroll = () => {
+          setIsScrolled(window.scrollY > 50);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+      }, []);
+
+      const navLinks = [
+        { name: '首頁', href: '#' },
+        { name: '學制', href: '#programs' },
+        { name: '時程', href: '#timeline' },
+        { name: '報名', href: '#apply' },
+      ];
+
+      return (
+        <nav
+          className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+            isScrolled ? 'bg-brand-navy/95 backdrop-blur-sm shadow-md py-4' : 'bg-transparent py-6'
+          }`}
+        >
+          <div className="container mx-auto px-4 flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${isScrolled ? 'border-brand-gold text-brand-gold' : 'border-white text-white'}`}>
+                    <span className="font-serif font-bold text-xl">靈</span>
+                </div>
+                <span className={`font-serif font-bold text-xl tracking-wider ${isScrolled ? 'text-white' : 'text-white'}`}>
+                    靈糧神學院
+                </span>
+            </div>
+
+            <div className="hidden md:flex space-x-8">
+              {navLinks.map((link) => (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  className={`text-sm font-medium hover:text-brand-gold transition-colors ${
+                    isScrolled ? 'text-gray-200' : 'text-white'
+                  }`}
+                >
+                  {link.name}
+                </a>
+              ))}
+              <a
+                href="#apply"
+                className="px-5 py-2 bg-brand-gold text-brand-navy text-sm font-bold rounded-full hover:bg-yellow-500 transition-colors"
+              >
+                立即報名
+              </a>
+            </div>
+
+            <button
+              className="md:hidden text-white"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <MenuIcon />
+            </button>
+          </div>
+
+          {isMobileMenuOpen && (
+            <div className="md:hidden absolute top-full left-0 w-full bg-brand-navy border-t border-gray-800 p-4 shadow-xl">
+              <div className="flex flex-col space-y-4">
+                {navLinks.map((link) => (
+                  <a
+                    key={link.name}
+                    href={link.href}
+                    className="text-white hover:text-brand-gold"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {link.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </nav>
+      );
+    };
+
+    // ==========================================
+    // Component: Hero
+    // ==========================================
+    const Hero = () => {
+      return (
+        <div className="relative h-screen min-h-[600px] w-full flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 z-0">
+            <img 
+              src="https://picsum.photos/id/1029/1920/1080?grayscale" 
+              alt="Seminary Campus" 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-brand-navy/80 mix-blend-multiply"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-brand-navy via-transparent to-transparent"></div>
+          </div>
+
+          <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+            <p className="text-brand-gold font-bold tracking-[0.2em] mb-4 animate-fade-in-up">
+              靈糧神學院 2026 招生
+            </p>
+            <h1 className="text-5xl md:text-7xl font-serif font-bold text-white mb-6 leading-tight drop-shadow-lg">
+              回應呼召<br />
+              <span className="text-brand-gold italic">承接使命</span>
+            </h1>
+            <p className="text-gray-200 text-lg md:text-xl mb-10 max-w-2xl mx-auto font-light leading-relaxed">
+              在這個震動的世代，上帝正在尋找願意獻上自己的人。<br/>
+              你準備好為主裝備，成為國度的器皿了嗎？
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <a href="#programs" className="px-8 py-4 bg-brand-gold text-brand-navy font-bold rounded-full hover:bg-yellow-500 transition-all transform hover:scale-105 shadow-lg">
+                查看學制
+              </a>
+              <a href="#apply" className="px-8 py-4 border border-white text-white font-bold rounded-full hover:bg-white hover:text-brand-navy transition-all transform hover:scale-105">
+                立即報名
+              </a>
+            </div>
+          </div>
+
+          <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce text-white/50">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // Component: Programs
+    // ==========================================
+    const programsData = [
+      // --- 神學本科 ---
+      {
+        id: 'mdiv',
+        category: 'theology',
+        title: '道學碩士',
+        degree: 'Master of Divinity',
+        duration: '三年制 / 全職',
+        description: '靈神旗艦課程。透過深度聖經神學與實用牧養，培育能正意分解真理、牧養教會的國度領袖。',
+        target: '確認全職蒙召者 (大專畢)',
+        icon: <BookIcon />
+      },
+      {
+        id: 'mdiv-counseling',
+        category: 'theology',
+        title: '道學碩士 (主修教牧輔導)',
+        degree: 'M.Div. (Major in Pastoral Counseling)',
+        duration: '三年制 / 全職',
+        description: '結合傳統道碩裝備與教牧輔導專業，培養具備諮商能力的牧會傳道人。',
+        target: '全職蒙召且對輔導有負擔者',
+        icon: <HeartIcon />
+      },
+      {
+        id: 'ma',
+        category: 'theology',
+        title: '聖工碩士',
+        degree: 'Master of Arts (M.A.)',
+        duration: '兩年制 / 彈性',
+        description: '為帶職事奉者或機構同工設計。裝備核心神學基礎，在職場與教會中發揮影響力。',
+        target: '帶職事奉領袖',
+        icon: <GlobeIcon />
+      },
+      {
+        id: 'bth',
+        category: 'theology',
+        title: '神學學士',
+        degree: 'Bachelor of Theology (B.Th.)',
+        duration: '四年制',
+        description: '針對無大學學歷但清楚蒙召者，提供完整的神學基礎教育與生命塑造。',
+        target: '高中職畢確認呼召者',
+        icon: <BookIcon />
+      },
+      {
+        id: 'm-miss',
+        category: 'theology',
+        title: '宣教碩士',
+        degree: 'Master of Missiology',
+        duration: '兩年制',
+        description: '專注於跨文化宣教神學與實務策略，培育擁有國度視野的宣教精兵。',
+        target: '跨文化宣教士',
+        icon: <GlobeIcon />
+      },
+      {
+        id: 'min-wife',
+        category: 'theology',
+        title: '師母證書班',
+        degree: 'Certificate for Minister\'s Wife',
+        duration: '部分時間',
+        description: '專為神學生妻子或現任師母設計，透過團體與課程，成為牧者得力的屬靈夥伴。',
+        target: '神學生配偶 / 師母',
+        icon: <UserGroupIcon />
+      },
+
+      // --- 牧靈諮商科 ---
+      {
+        id: 'pc-master',
+        category: 'counseling',
+        title: '牧靈諮商碩士',
+        degree: 'M.A. in Pastoral Counseling',
+        duration: '三年制',
+        description: '整合聖經真理、神學與心理諮商理論，培育具備屬靈洞察力的專業助人者。',
+        target: '欲從事專業諮商服事者',
+        icon: <HeartIcon />
+      },
+      {
+        id: 'pc-cert',
+        category: 'counseling',
+        title: '牧靈諮商證書',
+        degree: 'Certificate Program',
+        duration: '兩年制',
+        description: '提供基礎諮商輔導訓練，適合教會輔導同工進修，提升陪伴與助人的技巧。',
+        target: '教會輔導同工',
+        icon: <HeartIcon />
+      },
+      {
+        id: 'pc-inservice',
+        category: 'counseling',
+        title: '牧靈諮商在職專班',
+        degree: 'In-Service Program',
+        duration: '彈性修課',
+        description: '針對無法全職就讀者設計，透過集中上課或週末課程，逐步完成專業裝備。',
+        target: '帶職之助人工作者',
+        icon: <UserGroupIcon />
+      },
+
+      // --- 雲端學院 ---
+      {
+        id: 'cloud-credit',
+        category: 'cloud',
+        title: '學分學程',
+        degree: 'Credit Courses',
+        duration: '線上修課',
+        description: '突破時空限制，提供系統性的神學課程。學分可依規定抵免實體學制。',
+        target: '海外或無法到校者',
+        icon: <CloudIcon />
+      },
+      {
+        id: 'cloud-topic',
+        category: 'cloud',
+        title: '專題進修',
+        degree: 'Topic Studies',
+        duration: '短期課程',
+        description: '針對特定聖經書卷、神學議題或事奉技巧開設的短期線上課程。',
+        target: '渴望靈命進深之信徒',
+        icon: <CloudIcon />
+      },
+    ];
+
+    const categories = [
+      { id: 'theology', label: '神學本科', subtitle: '培育全職傳道與國度領袖' },
+      { id: 'counseling', label: '牧靈諮商科', subtitle: '醫治人心與恢復生命的專業' },
+      { id: 'cloud', label: '雲端學院', subtitle: '跨越圍牆的無國界教室' },
+    ];
+
+    const Programs = () => {
+      const [activeCategory, setActiveCategory] = React.useState('theology');
+
+      const filteredPrograms = programsData.filter(p => p.category === activeCategory);
+
+      return (
+        <section id="programs" className="py-24 bg-white scroll-mt-20">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-serif font-bold text-brand-navy mb-4">報考類別與學制</h2>
+              <div className="w-16 h-1 bg-brand-gold mx-auto mb-6"></div>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                靈糧神學院依據不同的呼召與裝備需求，設有三大報考類別。請選擇下方的類別以查看詳細學制。
+              </p>
+            </div>
+
+            {/* Category Tabs */}
+            <div className="flex flex-col md:flex-row justify-center gap-4 mb-12 max-w-4xl mx-auto">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`flex-1 py-4 px-6 rounded-xl transition-all duration-300 border-2 text-center group ${
+                    activeCategory === cat.id
+                      ? 'border-brand-navy bg-brand-navy text-white shadow-lg scale-105'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-brand-gold hover:text-brand-navy'
+                  }`}
+                >
+                  <span className="block text-xl font-serif font-bold mb-1">{cat.label}</span>
+                  <span className={`text-xs block ${activeCategory === cat.id ? 'text-gray-300' : 'text-gray-400 group-hover:text-brand-gold'}`}>
+                    {cat.subtitle}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Program Grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in">
+              {filteredPrograms.map((program) => (
+                <div key={program.id} className="bg-brand-cream rounded-xl p-8 hover:shadow-xl transition-all duration-300 border border-gray-100 group flex flex-col h-full">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="w-14 h-14 bg-brand-navy text-brand-gold rounded-lg flex items-center justify-center group-hover:bg-brand-gold group-hover:text-brand-navy transition-colors">
+                      {program.icon}
+                    </div>
+                    {program.duration && (
+                       <span className="bg-white px-3 py-1 rounded-full text-xs font-semibold text-gray-600 border border-gray-200">
+                        {program.duration}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <h3 className="text-2xl font-bold text-gray-900 mb-1">{program.title}</h3>
+                  {program.degree && (
+                    <p className="text-sm text-brand-gold font-medium mb-4">{program.degree}</p>
+                  )}
+                  
+                  <p className="text-gray-600 mb-6 leading-relaxed flex-grow">
+                    {program.description}
+                  </p>
+                  
+                  <div className="pt-6 border-t border-gray-200 mt-auto">
+                    <span className="text-sm font-bold text-brand-navy block mb-2">適合對象：</span>
+                    <span className="text-sm text-gray-600">{program.target}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+             {/* Empty State / Fallback */}
+             {filteredPrograms.length === 0 && (
+               <div className="text-center text-gray-500 py-12">
+                 此類別目前尚無學制資料。
+               </div>
+             )}
+          </div>
+        </section>
+      );
+    };
+
+    // ==========================================
+    // Component: Timeline
+    // ==========================================
+    const events = [
+      {
+        date: '2026.03.01',
+        title: '簡章公告',
+        description: '公布 2026 學年度招生簡章，開放下載報名表格與推薦信格式。',
+      },
+      {
+        date: '2026.03.01 -05.15',
+        title: '受理報名',
+        description: '請於期限內完成線上報名，並將紙本資料寄達教務處。逾期不予受理。',
+      },
+      {
+        date: '2026.06.14',
+        title: '入學考試',
+        description: '筆試科目：聖經、國文/英文、心理測驗。',
+      },
+      {
+        date: '2026.06.1 - 06.14',
+        title: '口試面談',
+        description: '與學院老師進行一對一面談，分享蒙召見證與事奉心志。',
+      },
+      {
+        date: '2026.07.10',
+        title: '放榜',
+        description: '錄取名單將公告於官網，並寄發錄取通知書。',
+      },
+    ];
+
+    const Timeline = () => {
+      return (
+        <section id="timeline" className="py-24 bg-brand-navy text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-brand-gold/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+
+          <div className="container mx-auto px-4 relative z-10">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-serif font-bold text-white mb-4">招生時程</h2>
+              <div className="w-16 h-1 bg-brand-gold mx-auto mb-6"></div>
+              <p className="text-gray-300">掌握關鍵日期，提早預備，邁向呼召之路。</p>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              {events.map((event, index) => (
+                <div key={index} className="flex flex-col md:flex-row gap-8 mb-12 relative">
+                  {index !== events.length - 1 && (
+                    <div className="hidden md:block absolute left-[150px] top-8 bottom-[-48px] w-0.5 bg-gray-700"></div>
+                  )}
+                  
+                  <div className="md:w-40 flex-shrink-0 text-left md:text-right pt-1">
+                    <span className="text-brand-gold font-bold text-xl font-serif block">{event.date}</span>
+                  </div>
+
+                  <div className="hidden md:flex flex-col items-center pt-2 relative">
+                    <div className="w-4 h-4 bg-brand-gold rounded-full shadow-[0_0_10px_rgba(212,175,55,0.6)] z-10"></div>
+                  </div>
+
+                  <div className="flex-1 bg-white/5 p-6 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
+                    <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">{event.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-center mt-12">
+                <a href="https://llpmts.org/admissions" target="_blank" rel="noreferrer" className="inline-flex items-center text-brand-gold hover:text-white transition-colors border-b border-brand-gold pb-1">
+                    查看詳細招生簡章 PDF
+                    <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                </a>
+            </div>
+          </div>
+        </section>
+      );
+    };
+
+    // ==========================================
+    // Component: Testimonials
+    // ==========================================
+    const Testimonials = () => {
+        const items = [
+            {
+                quote: "在靈神的這三年，不只是知識的裝備，更是生命的破碎與重建。老師們的榜樣讓我看見為父為母的心腸。",
+                author: "張傳道",
+                role: "第 28 屆道碩校友",
+                image: "https://picsum.photos/id/64/100/100"
+            },
+            {
+                quote: "職場與神學並非兩條平行線。聖工碩士班幫助我將信仰帶入職場，成為有影響力的但以理。",
+                author: "林經理",
+                role: "第 15 屆聖工碩校友",
+                image: "https://picsum.photos/id/91/100/100"
+            }
+        ];
+
+        return (
+            <section className="py-24 bg-gray-50">
+                <div className="container mx-auto px-4">
+                     <div className="text-center mb-16">
+                        <h2 className="text-4xl font-serif font-bold text-brand-navy mb-4">校友見證</h2>
+                        <div className="w-16 h-1 bg-brand-gold mx-auto"></div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                        {items.map((item, idx) => (
+                            <div key={idx} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center md:items-start gap-6">
+                                <img src={item.image} alt={item.author} className="w-16 h-16 rounded-full object-cover ring-2 ring-brand-gold/20" />
+                                <div className="text-center md:text-left">
+                                    <p className="text-gray-600 italic mb-4">"{item.quote}"</p>
+                                    <h5 className="font-bold text-brand-navy">{item.author}</h5>
+                                    <span className="text-xs text-brand-gold font-bold uppercase tracking-wide">{item.role}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        );
+    };
+
+    // ==========================================
+    // Component: CallToAction
+    // ==========================================
+    const CallToAction = () => {
+      return (
+        <section id="apply" className="py-24 bg-brand-navy relative overflow-hidden text-center">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+            <div className="container mx-auto px-4 relative z-10">
+                <h2 className="text-4xl md:text-5xl font-serif font-bold text-white mb-8">
+                    這一步，<br/>將改變你的一生
+                </h2>
+                <p className="text-gray-300 max-w-xl mx-auto mb-10 text-lg">
+                    2026 學年度招生現已開放諮詢。若您心中有感動，或正在尋求確認，請不要消滅聖靈的感動。
+                </p>
+                
+                <div className="flex flex-col sm:flex-row justify-center gap-4">
+                    <button 
+                        onClick={() => alert('報名系統將於 2026.04.01 開放，請先下載簡章。')}
+                        className="px-10 py-4 bg-brand-gold text-brand-navy text-lg font-bold rounded-full hover:bg-yellow-500 shadow-lg transform transition-all hover:-translate-y-1"
+                    >
+                        下載招生簡章
+                    </button>
+                    <button 
+                        onClick={() => document.querySelector('button[aria-label="Open Admissions Advisor"]')?.click()}
+                        className="px-10 py-4 border border-white text-white text-lg font-bold rounded-full hover:bg-white hover:text-brand-navy transition-all"
+                    >
+                        線上諮詢顧問
+                    </button>
+                </div>
+            </div>
+        </section>
+      );
+    };
+
+    // ==========================================
+    // Component: Footer
+    // ==========================================
+    const Footer = () => {
+      return (
+        <footer className="bg-slate-900 text-gray-400 py-12 border-t border-gray-800">
+          <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-3 gap-8">
+              <div>
+                <h4 className="text-white font-serif font-bold text-lg mb-4">靈糧神學院</h4>
+                <p className="text-sm mb-2">Bread of Life Theological Seminary</p>
+                <p className="text-sm">培育神國工人的搖籃，建造榮耀教會的基地。</p>
+              </div>
+              <div>
+                <h4 className="text-white font-serif font-bold text-lg mb-4">聯絡我們</h4>
+                <ul className="text-sm space-y-2">
+                  <li>電話：+886-2-7733-7722</li>
+                  <li>Email：admissions@llpmts.org</li>
+                  <li>地址：231 新北市新店區北新路三段205-3號4樓</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="text-white font-serif font-bold text-lg mb-4">快速連結</h4>
+                <ul className="text-sm space-y-2">
+                    <li><a href="#" className="hover:text-brand-gold">學院首頁</a></li>
+                    <li><a href="#" className="hover:text-brand-gold">師資團隊</a></li>
+                    <li><a href="#" className="hover:text-brand-gold">支持奉獻</a></li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-12 pt-8 border-t border-gray-800 text-center text-xs">
+              <p>&copy; 2025 Bread of Life Theological Seminary. All rights reserved.</p>
+            </div>
+          </div>
+        </footer>
+      );
+    };
+
+    // ==========================================
+    // Main App
+    // ==========================================
+    const App = () => {
+      return (
+        <div className="min-h-screen font-sans text-brand-navy bg-brand-cream selection:bg-brand-gold selection:text-white">
+          <NavBar />
+          <Hero />
+          <Programs />
+          <Timeline />
+          <Testimonials />
+          <CallToAction />
+          <Footer />
+          <AdmissionsAdvisor />
+        </div>
+      );
+    };
+
+    // ==========================================
+    // Render
+    // ==========================================
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+  </script>
+</body>
+</html>
